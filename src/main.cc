@@ -87,8 +87,8 @@ static void display()
 
 	glMatrixMode(GL_MODELVIEW);
 	glLoadIdentity();
-	glRotatef(cam_phi, 1, 0, 0);
-	glRotatef(cam_theta, 0, 1, 0);
+	glRotatef(-cam_theta, 0, 1, 0);
+	glRotatef(-cam_phi, 1, 0, 0);
 	glTranslatef(0, 0, -cam_dist);
 
 	if(sdrprog) {
