@@ -17,7 +17,6 @@ static void idle();
 
 static int sdr_load(const char *fname, int id, void *closure);
 static int sdr_done(int id, void *closure);
-static void sdr_destroy(int id, void *closure);
 
 resman *sdrman;
 unsigned int sdrprog;
@@ -58,13 +57,13 @@ static bool init(const char *fname)
 
 	resman_set_load_func(sdrman, sdr_load, 0);
 	resman_set_done_func(sdrman, sdr_done, 0);
-	resman_set_destroy_func(sdrman, sdr_destroy, 0);
 
 	if(resman_add(sdrman, fname, 0) == -1) {
 		fprintf(stderr, "Failed to load shader\n");
 		return false;
 	}
 
+	resman_wait_all(sdrman);
 	return true;
 }
 
@@ -83,10 +82,10 @@ static void display()
 		glUseProgram(sdrprog);
 
 		glBegin(GL_QUADS);
-		glTexCoord2f(0, 1); glVertex2f(-1, -1);
-		glTexCoord2f(1, 1); glVertex2f(1, -1);
-		glTexCoord2f(1, 0); glVertex2f(1, 1);
-		glTexCoord2f(0, 0); glVertex2f(-1, 1);
+		glVertex2f(-1, -1);
+		glVertex2f(1, -1);
+		glVertex2f(1, 1);
+		glVertex2f(-1, 1);
 		glEnd();
 	}
 
@@ -177,8 +176,4 @@ static int sdr_done(int id, void *closure)
 
 	sdrprog = tmp_sdrprog;
 	return 0;
-}
-
-static void sdr_destroy(int id, void *closure)
-{
 }
