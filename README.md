@@ -7,7 +7,7 @@ make
 
 Usage:
 ------
-./sdrviewer <shader filename>
+./sdrviewer \<shader filename\>
 
 NOTE: if you are editing files using Vim you need to do:
 :set nowritebackup
