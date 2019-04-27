@@ -14,12 +14,17 @@ static void display();
 static void reshape(int w, int h);
 static void keyboard(unsigned char key, int x, int y);
 static void idle();
+static void mouse(int bn, int st, int x, int y);
+static void motion(int x, int y);
 
 static int sdr_load(const char *fname, int id, void *closure);
 static int sdr_done(int id, void *closure);
 
-resman *sdrman;
-unsigned int sdrprog;
+static resman *sdrman;
+static unsigned int sdrprog;
+static float cam_phi, cam_theta, cam_dist = 10;
+
+static int uloc_cam_xform = -1;
 
 int main(int argc, char **argv)
 {
@@ -31,6 +36,8 @@ int main(int argc, char **argv)
 	glutDisplayFunc(display);
 	glutReshapeFunc(reshape);
 	glutKeyboardFunc(keyboard);
+	glutMouseFunc(mouse);
+	glutMotionFunc(motion);
 	glutIdleFunc(idle);
 
 	if(!argv[1]) {
@@ -74,12 +81,26 @@ static void cleanup()
 
 static void display()
 {
+	resman_poll(sdrman);
+
 	glClear(GL_COLOR_BUFFER_BIT);
 
-	resman_poll(sdrman);
+	glMatrixMode(GL_MODELVIEW);
+	glLoadIdentity();
+	glRotatef(cam_phi, 1, 0, 0);
+	glRotatef(cam_theta, 0, 1, 0);
+	glTranslatef(0, 0, -cam_dist);
 
 	if(sdrprog) {
 		glUseProgram(sdrprog);
+
+		if(uloc_cam_xform != -1) {
+			float cam_mat[16];
+			glGetFloatv(GL_MODELVIEW_MATRIX, cam_mat);
+			glUniformMatrix4fv(uloc_cam_xform, 1, 0, cam_mat);
+		}
+
+		glLoadIdentity();
 
 		glBegin(GL_QUADS);
 		glVertex2f(-1, -1);
@@ -146,8 +167,7 @@ static int sdr_done(int id, void *closure)
 	char *start = strstr(buf, FSDR_START_TAG);
 
 	if(!start) {
-		fprintf(stderr, "Failed to find fragment shader in the given file.\n");
-		return -1;
+		start = buf;
 	}
 
 	start += strlen(FSDR_START_TAG);
@@ -155,6 +175,9 @@ static int sdr_done(int id, void *closure)
 	char *end = strstr(start, "\n[");
 	if(end)
 		end[1] = '\0';
+
+	clear_shader_header(GL_FRAGMENT_SHADER);
+	add_shader_header(GL_FRAGMENT_SHADER, "#version 450\n#define SDRVIEWER\n");
 
 	unsigned int fsdr = create_pixel_shader(start);
 	delete buf;
@@ -175,5 +198,48 @@ static int sdr_done(int id, void *closure)
 		free_program(sdrprog);
 
 	sdrprog = tmp_sdrprog;
+
+	uloc_cam_xform = glGetUniformLocation(sdrprog, "cam_xform");
 	return 0;
+}
+
+static bool bnstate[8];
+static int prev_x, prev_y;
+static void mouse(int bn, int st, int x, int y)
+{
+	int bidx = bn - GLUT_LEFT_BUTTON;
+	bnstate[bidx] = st == GLUT_DOWN;
+
+	prev_x = x;
+	prev_y = y;
+}
+
+static void motion(int x, int y)
+{
+	int dx = x - prev_x;
+	int dy = y - prev_y;
+
+	prev_x = x;
+	prev_y = y;
+
+	if(!(dx | dy))
+		return;
+
+	if(bnstate[0]) {
+		cam_theta += dx * 0.5;
+		cam_phi += dy * 0.5;
+
+		if(cam_phi < -90) cam_phi = -90;
+		if(cam_phi > 90) cam_phi = 90;
+
+		glutPostRedisplay();
+	}
+
+	if(bnstate[2]) {
+		cam_dist += dy * 0.1;
+
+		if(cam_dist < 0) cam_dist = 0;
+
+		glutPostRedisplay();
+	}
 }
