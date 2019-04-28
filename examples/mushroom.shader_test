@@ -1,0 +1,139 @@
+[require]
+fbsize 800 600
+
+[vertex shader passthrough]
+
+[fragment shader]
+#ifndef SDRVIEWER
+#version 450
+#endif
+
+layout(location = 0) out vec4 out_color;
+
+#ifdef SDRVIEWER
+uniform mat4 cam_xform;
+#endif
+
+#define T 0.0001
+#define STEP 0.01
+#define FOV 45.0
+#define M_PI 3.14159
+#define MAX_STEPS 2000
+
+#define OBJ_NULL 0
+#define	OBJ_MUSHROOM_TOP 1
+#define OBJ_MUSHROOM_BOTTOM 2
+#define OBJ_MUSHROOM_STEM 3
+
+const vec2 res = vec2(800.0, 600.0);
+
+/* dist from nearest object */
+float calc_dist_mushroom(in vec3 point, out vec3 normal, out int obj_id)
+{
+	const float sep = 4.0;
+	const float hsep = sep / 2.0;
+	vec3 p = vec3(mod(point.x + hsep, sep) - hsep, point.y, mod(point.z + hsep, sep) - hsep);
+	vec3 cap_pt = p * vec3(1.0, 1.5, 1.0);
+
+	normal = normalize(cap_pt);
+
+	const float sph_radius = 1.0;
+	const float bigsph_radius = 50.0;
+
+	float dsph_small = sqrt(dot(cap_pt, cap_pt)) - sph_radius;
+	vec3 dvec = vec3(0.0, bigsph_radius - 0.2, 0.0) - cap_pt;
+	float dsph_big = sqrt(dot(dvec, dvec)) - bigsph_radius;
+
+	float stem_radius = 0.7;
+	vec3 stem_center = vec3(0.0, -0.3, 0.0);
+	float stem_scale = clamp((p.y - stem_center.y) / stem_radius + 2.0, 1.0, 3.0) * 1.1;
+	vec3 stem_pt = p * vec3(stem_scale, 1.0, stem_scale);
+	dvec = stem_center - stem_pt;
+	float dist_stem = sqrt(dot(dvec, dvec)) - stem_radius;
+
+	float dist;
+
+	if(dsph_small > dsph_big) {
+		obj_id = OBJ_MUSHROOM_TOP;
+		dist = dsph_small;
+	} else {
+		obj_id = OBJ_MUSHROOM_BOTTOM;
+		dist = dsph_big;
+	}
+
+	if(dist_stem < dist) {
+		obj_id = OBJ_MUSHROOM_STEM;
+		dist = dist_stem;
+	}
+
+	return dist;
+}
+
+float calc_dist(in vec3 point, out vec3 normal, out int obj_id)
+{
+	return calc_dist_mushroom(point, normal, obj_id);
+}
+
+vec3 bg_color(in vec2 uv)
+{
+	return vec3(0.02, 0.15, 0.25);
+}
+
+vec3 shade(in vec3 pos, in vec3 normal, in int obj_id)
+{
+	switch(obj_id) {
+	case OBJ_MUSHROOM_TOP:
+		return vec3(0.9, 0.0, 0.0);
+	case OBJ_MUSHROOM_BOTTOM:
+		return vec3(0.15, 0.25, 0.4);
+	case OBJ_MUSHROOM_STEM:
+		return vec3(0.0, 0.6, 0.1);
+	default:
+		return vec3(0.1, 0.1, 0.1);
+	}
+}
+
+void main()
+{
+	vec2 uv = gl_FragCoord.xy / res;
+	float aspect = res.x / res.y;
+
+	float half_fov = (FOV / 180.0 * M_PI) / 2.0;
+	float viewplane_dist = 1.0 / tan(half_fov); 
+
+	vec3 dir;
+	dir.x = aspect * (uv.x * 2.0 - 1.0);
+	dir.y = uv.y * 2.0 - 1.0;
+	dir.z = viewplane_dist;
+	dir = normalize(dir);
+
+#ifdef SDRVIEWER
+	dir = mat3(cam_xform) * dir;
+	vec3 pos = (cam_xform * vec4(0.0, 0.0, 0.0, 1.0)).xyz;
+#else
+	vec3 pos = vec3(0.0, 0.0, -10.0); //cam pos
+#endif
+
+	int obj_id = OBJ_NULL;
+	vec3 normal;
+	float dist;
+
+	for(int i=0; i<MAX_STEPS; i++) {
+		int id;
+		dist = calc_dist(pos, normal, id);
+		if(dist <= T) {
+			obj_id = id;
+			break;
+		}
+
+		pos += dir * STEP;
+	}
+
+	if(obj_id == OBJ_NULL)
+		out_color = vec4(bg_color(uv), 1.0);
+	else
+		out_color = vec4(shade(pos, normal, obj_id), 1.0);
+}
+
+[test]
+draw rect -1 -1 2 2
