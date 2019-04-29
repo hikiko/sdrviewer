@@ -1,9 +1,16 @@
 #include <GL/glew.h>
-#include <GL/glut.h>
 
-#include <resman.h>
+#include <GL/freeglut.h>
+#include <GL/glx.h>
+
+#include <errno.h>
+#include <sys/select.h>
+#include <unistd.h>
+
 #include <stdio.h>
 #include <string.h>
+
+#include <resman.h>
 
 #include "sdr.h"
 
@@ -13,17 +20,19 @@ static void cleanup();
 static void display();
 static void reshape(int w, int h);
 static void keyboard(unsigned char key, int x, int y);
-static void idle();
 static void mouse(int bn, int st, int x, int y);
 static void motion(int x, int y);
+static void post_redisplay();
 
 static int sdr_load(const char *fname, int id, void *closure);
 static int sdr_done(int id, void *closure);
 
 static resman *sdrman;
-static unsigned int sdrprog;
+static bool redraw_pending = false;
+
 static float cam_phi, cam_theta, cam_dist = 10;
 
+static unsigned int sdrprog;
 static int uloc_cam_xform = -1;
 
 int main(int argc, char **argv)
@@ -38,7 +47,6 @@ int main(int argc, char **argv)
 	glutKeyboardFunc(keyboard);
 	glutMouseFunc(mouse);
 	glutMotionFunc(motion);
-	glutIdleFunc(idle);
 
 	if(!argv[1]) {
 		fprintf(stderr, "Usage: %s <pixel shader filename>\n", argv[0]);
@@ -50,7 +58,37 @@ int main(int argc, char **argv)
 
 	atexit(cleanup);
 
-	glutMainLoop();
+	Display *dpy = glXGetCurrentDisplay();
+	int xfd = ConnectionNumber(dpy);
+
+	for(;;) {
+		if(!redraw_pending) {
+			int num_rfds;
+			int *rfds = resman_get_wait_fds(sdrman, &num_rfds);
+
+			fd_set rset;
+			FD_ZERO(&rset);
+
+			int maxfd = xfd;
+			FD_SET(xfd, &rset);
+
+			for(int i=0; i<num_rfds; i++) {
+				FD_SET(rfds[i], &rset);
+				if(rfds[i] > maxfd) maxfd = rfds[i];
+			}
+
+			int sel_found;
+			while((sel_found = select(maxfd + 1, &rset, 0, 0, 0)) == -1 &&
+				errno == EINTR);
+
+			if((sel_found > 0 && !FD_ISSET(xfd, &rset)) || sel_found > 1) {
+				glutPostRedisplay();
+			}
+		}
+
+		redraw_pending = false;
+		glutMainLoopEvent();
+	}
 }
 
 static bool init(const char *fname)
@@ -98,6 +136,8 @@ static void display()
 			float cam_mat[16];
 			glGetFloatv(GL_MODELVIEW_MATRIX, cam_mat);
 			glUniformMatrix4fv(uloc_cam_xform, 1, 0, cam_mat);
+
+			post_redisplay();
 		}
 
 		glLoadIdentity();
@@ -122,15 +162,11 @@ static void keyboard(unsigned char key, int x, int y)
 {
 	switch(key) {
 	case 27:
+		glutLeaveMainLoop();
 		exit(0);
 	default:
 		break;
 	}
-}
-
-static void idle()
-{
-	glutPostRedisplay();
 }
 
 static int sdr_load(const char *fname, int id, void *closure)
@@ -200,6 +236,9 @@ static int sdr_done(int id, void *closure)
 	sdrprog = tmp_sdrprog;
 
 	uloc_cam_xform = glGetUniformLocation(sdrprog, "cam_xform");
+
+	post_redisplay();
+
 	return 0;
 }
 
@@ -232,7 +271,7 @@ static void motion(int x, int y)
 		if(cam_phi < -90) cam_phi = -90;
 		if(cam_phi > 90) cam_phi = 90;
 
-		glutPostRedisplay();
+		post_redisplay();
 	}
 
 	if(bnstate[2]) {
@@ -240,6 +279,12 @@ static void motion(int x, int y)
 
 		if(cam_dist < 0) cam_dist = 0;
 
-		glutPostRedisplay();
+		post_redisplay();
 	}
+}
+
+static void post_redisplay()
+{
+	redraw_pending = true;
+	glutPostRedisplay();
 }
