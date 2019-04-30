@@ -35,7 +35,9 @@ static float cam_phi, cam_theta, cam_dist = 10;
 static unsigned int sdrprog;
 static int uloc_cam_xform = -1;
 
+static float sensitivity = 0.5;
 static bool quit;
+static bool busy_loop;
 
 int main(int argc, char **argv)
 {
@@ -62,6 +64,10 @@ int main(int argc, char **argv)
 	int xfd = ConnectionNumber(dpy);
 
 	while(!quit) {
+		if(busy_loop) {
+			post_redisplay();
+		}
+
 		if(!redraw_pending) {
 			int num_rfds;
 			int *rfds = resman_get_wait_fds(sdrman, &num_rfds);
@@ -141,9 +147,6 @@ static void display()
 			float cam_mat[16];
 			glGetFloatv(GL_MODELVIEW_MATRIX, cam_mat);
 			glUniformMatrix4fv(uloc_cam_xform, 1, 0, cam_mat);
-
-			/* busy loop until the libresman bug gets fixed... */
-			post_redisplay();
 		}
 
 		glLoadIdentity();
@@ -169,6 +172,21 @@ static void keyboard(unsigned char key, int x, int y)
 	switch(key) {
 	case 27:
 		quit = true;
+		break;
+	case '`':
+	case '\n':
+		post_redisplay();
+		break;
+	case '=':
+		sensitivity *= 2;
+		printf("sensitivity: %f\n", sensitivity);
+		break;
+	case '-':
+		sensitivity *= 0.5;
+		printf("sensitivity: %f\n", sensitivity);
+		break;
+	case 'b':
+		busy_loop = !busy_loop;
 		break;
 	default:
 		break;
@@ -271,8 +289,8 @@ static void motion(int x, int y)
 		return;
 
 	if(bnstate[0]) {
-		cam_theta += dx * 0.5;
-		cam_phi += dy * 0.5;
+		cam_theta += dx * sensitivity;
+		cam_phi += dy * sensitivity;
 
 		if(cam_phi < -90) cam_phi = -90;
 		if(cam_phi > 90) cam_phi = 90;
@@ -281,7 +299,7 @@ static void motion(int x, int y)
 	}
 
 	if(bnstate[2]) {
-		cam_dist += dy * 0.1;
+		cam_dist += dy * sensitivity / 5.0;
 
 		if(cam_dist < 0) cam_dist = 0;
 

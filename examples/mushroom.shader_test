@@ -15,10 +15,10 @@ uniform mat4 cam_xform;
 #endif
 
 #define T 0.0001
-#define STEP 0.01
+#define STEP 0.02
 #define FOV 45.0
 #define M_PI 3.14159
-#define MAX_STEPS 2000
+#define MAX_STEPS 1500
 #define GRAD_DELTA (STEP / 2.0)
 
 #define OBJ_NULL 0
@@ -32,21 +32,35 @@ const vec2 res = vec2(800.0, 600.0);
 float pnoise(vec2 P, vec2 rep);
 float cnoise(vec2 P);
 
-float ground_height(vec3 point)
+float ground_height(vec2 point)
 {
-	return cnoise(point.xz * 0.85);
+	return cnoise(point * 0.1) * 3.0;
 }
 
 /* dist from nearest object */
 float calc_dist_mushroom(in vec3 point, out int obj_id)
 {
-	const float sep = 4.0;
-	const float hsep = sep / 2.0;
-	vec3 p = vec3(mod(point.x + hsep, sep) - hsep, point.y, mod(point.z + hsep, sep) - hsep);
-	vec3 cap_pt = p * vec3(1.0, 1.5, 1.0);
-
 	const float sph_radius = 1.0;
 	const float bigsph_radius = 50.0;
+
+	const float sep = 5.6; //dist between 2 mushrooms
+	const float hsep = sep / 2.0;
+	vec2 cell_pt = floor((point.xz + vec2(hsep, hsep)) / sep) * sep;
+
+	vec2 cell_pt2 = cell_pt * 7.32;
+	vec2 cell_noise = vec2(cnoise(cell_pt2 + 3.48),
+			cnoise(cell_pt2 + 25.72));
+	vec3 scale = vec3(1.0, 1.0, 1.0);//vec3(cell_noise.x, cell_noise.y, cell_noise.x) *
+	//	vec3(0.4, 0.6, 0.4) + vec3(1.0, 1.0, 1.0);
+	vec2 xzoffs = cell_noise * (hsep - sph_radius * max(scale.x, scale.z));
+
+	vec3 p = vec3(mod(point.x + hsep, sep) - hsep, point.y,
+			mod(point.z + hsep, sep) - hsep) * scale;
+	p.x += xzoffs.x;
+	p.z += xzoffs.y;
+	p.y -= ground_height(cell_pt - xzoffs);
+
+	vec3 cap_pt = p * vec3(1.0, 1.5, 1.0);
 
 	float dsph_small = sqrt(dot(cap_pt, cap_pt)) - sph_radius;
 	vec3 bigsph_center = vec3(0.0, bigsph_radius - 0.2, 0.0);
@@ -82,7 +96,7 @@ float calc_dist_ground(in vec3 point, out int obj_id)
 {
 	obj_id = OBJ_GROUND;
 
-	const float ground_height = -0.9 + ground_height(point); 
+	const float ground_height = -0.9 + ground_height(point.xz); 
 	return point.y - ground_height;
 }
 
