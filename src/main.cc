@@ -35,6 +35,8 @@ static float cam_phi, cam_theta, cam_dist = 10;
 static unsigned int sdrprog;
 static int uloc_cam_xform = -1;
 
+static bool quit;
+
 int main(int argc, char **argv)
 {
 	glutInit(&argc, argv);
@@ -56,12 +58,10 @@ int main(int argc, char **argv)
 	if(!init(argv[1]))
 		return 1;
 
-	atexit(cleanup);
-
 	Display *dpy = glXGetCurrentDisplay();
 	int xfd = ConnectionNumber(dpy);
 
-	for(;;) {
+	while(!quit) {
 		if(!redraw_pending) {
 			int num_rfds;
 			int *rfds = resman_get_wait_fds(sdrman, &num_rfds);
@@ -89,6 +89,7 @@ int main(int argc, char **argv)
 		redraw_pending = false;
 		glutMainLoopEvent();
 	}
+	cleanup();
 }
 
 static bool init(const char *fname)
@@ -162,8 +163,8 @@ static void keyboard(unsigned char key, int x, int y)
 {
 	switch(key) {
 	case 27:
-		glutLeaveMainLoop();
-		exit(0);
+		quit = true;
+		break;
 	default:
 		break;
 	}
