@@ -81,8 +81,12 @@ int main(int argc, char **argv)
 			while((sel_found = select(maxfd + 1, &rset, 0, 0, 0)) == -1 &&
 				errno == EINTR);
 
-			if((sel_found > 0 && !FD_ISSET(xfd, &rset)) || sel_found > 1) {
-				glutPostRedisplay();
+			if(sel_found) {
+				for(int i=0; i<num_rfds; i++) {
+					if(FD_ISSET(rfds[i], &rset)) {
+						post_redisplay();
+					}
+				}
 			}
 		}
 
@@ -138,6 +142,7 @@ static void display()
 			glGetFloatv(GL_MODELVIEW_MATRIX, cam_mat);
 			glUniformMatrix4fv(uloc_cam_xform, 1, 0, cam_mat);
 
+			/* busy loop until the libresman bug gets fixed... */
 			post_redisplay();
 		}
 
