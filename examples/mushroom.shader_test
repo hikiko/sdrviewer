@@ -31,10 +31,12 @@ const vec2 res = vec2(800.0, 600.0);
 
 float pnoise(vec2 P, vec2 rep);
 float cnoise(vec2 P);
+float noised(vec2 P);
 
 float ground_height(vec2 point)
 {
-	return cnoise(point * 0.1) * 3.0;
+	return noised(point * 0.1) * 3.0;
+//	return cnoise(point * 0.1) * 3.0;
 }
 
 /* dist from nearest object */
@@ -48,8 +50,10 @@ float calc_dist_mushroom(in vec3 point, out int obj_id)
 	vec2 cell_pt = floor((point.xz + vec2(hsep, hsep)) / sep) * sep;
 
 	vec2 cell_pt2 = cell_pt * 7.32;
-	vec2 cell_noise = vec2(cnoise(cell_pt2 + 3.48),
-			cnoise(cell_pt2 + 25.72));
+	vec2 cell_noise = vec2(noised(cell_pt2 + 3.48),
+			noised(cell_pt2 + 25.72));
+//	vec2 cell_noise = vec2(cnoise(cell_pt2 + 3.48),
+//			cnoise(cell_pt2 + 25.72));
 	vec3 scale = vec3(1.0, 1.0, 1.0);//vec3(cell_noise.x, cell_noise.y, cell_noise.x) *
 	//	vec3(0.4, 0.6, 0.4) + vec3(1.0, 1.0, 1.0);
 	vec2 xzoffs = cell_noise * (hsep - sph_radius * max(scale.x, scale.z));
@@ -306,6 +310,45 @@ float cnoise(vec2 P)
   vec2 n_x = mix(vec2(n00, n01), vec2(n10, n11), fade_xy.x);
   float n_xy = mix(n_x.x, n_x.y, fade_xy.y);
   return 2.3 * n_xy;
+}
+
+// These noise functions are modifications of these ones
+// from Inigo Quilez: https://www.shadertoy.com/view/XsXfRH
+
+float hash(in vec2 p)
+{
+    p  = 50.0*fract( p*0.3183099 + vec2(0.71,0.113));
+    return -1.0+2.0*fract(p.x*p.y*(p.x+p.y));
+}
+
+float noised(in vec2 x)
+{
+    vec2 p = floor(x);
+    vec2 w = fract(x);
+    
+#if 1
+    // quintic interpolation
+    vec2 u = w*w*w*(w*(w*6.0-15.0)+10.0);
+    vec2 du = 30.0*w*w*(w*(w-2.0)+1.0);
+#else
+    // cubic interpolation
+    vec2 u = w*w*(3.0-2.0*w);
+    vec2 du = 6.0*w*(1.0-w);
+#endif    
+    
+    
+    float a = hash(p+vec2(0.0,0.0));
+    float b = hash(p+vec2(1.0,0.0));
+    float c = hash(p+vec2(0.0,1.0));
+    float d = hash(p+vec2(1.0,1.0));
+	
+    float k0 =   a;
+    float k1 =   b - a;
+    float k2 =   c - a;
+    float k3 =   a - b - c + d;
+
+    return float(k0 + k1*u.x + k2*u.y +
+		k3*u.x*u.y);
 }
 
 [test]
