@@ -9,11 +9,13 @@ Usage:
 ------
 ./sdrviewer \<shader filename\>
 
-NOTE: if you are editing files using Vim you need to do:
-:set nowritebackup
+Pressing b enables and disables the busy loop (useful to count the
+framerate).
+Pressing - and = (the -/+ buttons) decreases and increases the camera
+sensitivity.
 
-otherwise vim will temporarily save the file and then mv the
-tmp file to the old => we aren't watching the correct file
+NOTE: if you are editing files using Vim you might need to do:
+:set nowritebackup
 
 
 License
