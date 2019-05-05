@@ -228,9 +228,9 @@ static int sdr_done(int id, void *closure)
 
 	if(!start) {
 		start = buf;
+	} else {
+		start += strlen(FSDR_START_TAG);
 	}
-
-	start += strlen(FSDR_START_TAG);
 
 	char *end = strstr(start, "\n[");
 	if(end)
